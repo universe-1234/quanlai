@@ -25,7 +25,7 @@
 普通用户只需要一台 64 位 Windows 10/11 电脑：
 
 1. 打开 [Releases](https://github.com/universe-1234/quanlai/releases/latest)；
-2. 下载 `券来-Setup-版本号-x64.exe`；
+2. 下载 `QuanLai-Setup-版本号-x64.exe`；
 3. 双击安装并启动券来。
 
 安装包已经包含桌面运行环境、独立 Python 和公开发布的 Skill，**不需要安装 WorkBuddy、Node.js 或 Python**。
@@ -105,7 +105,7 @@ flowchart LR
 在安装包和 `.sha256` 文件所在目录打开 PowerShell：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 '.\券来-Setup-1.0.4-x64.exe'
+Get-FileHash -Algorithm SHA256 '.\QuanLai-Setup-1.0.5-x64.exe'
 ```
 
 输出值应与 Release 中 `.sha256` 文件的第一列一致。
@@ -152,8 +152,8 @@ npm run runtime:prepare  # 准备内置 Python 与公开 Skill
 发布新版本：
 
 ```bash
-git tag v1.0.4
-git push origin v1.0.4
+git tag v1.0.5
+git push origin v1.0.5
 ```
 
 推送 `v*` 标签后，GitHub Actions 会在 Windows 环境执行测试、构建安装包、生成 SHA-256 校验文件并发布 Release。工作流使用 GitHub 官方的 `checkout`、`setup-node` 与 GitHub CLI。

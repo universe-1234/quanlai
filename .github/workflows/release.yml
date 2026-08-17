@@ -51,7 +51,7 @@ jobs:
       - name: Create checksum
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -LiteralPath release -Filter "券来-Setup-*.exe" | Select-Object -First 1
+          $installer = Get-ChildItem -LiteralPath release -Filter "QuanLai-Setup-*.exe" | Select-Object -First 1
           if (-not $installer) { throw "Windows installer was not generated" }
           $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
           $checksum = Join-Path $installer.DirectoryName "$($installer.Name).sha256"
@@ -63,7 +63,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $installer = Get-ChildItem -LiteralPath release -Filter "券来-Setup-*.exe" | Select-Object -First 1
+          $installer = Get-ChildItem -LiteralPath release -Filter "QuanLai-Setup-*.exe" | Select-Object -First 1
           $checksum = "$($installer.FullName).sha256"
           $maxAttempts = 5
           $publishExitCode = 1
