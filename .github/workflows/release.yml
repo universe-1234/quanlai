@@ -65,4 +65,11 @@ jobs:
         run: |
           $installer = Get-ChildItem -LiteralPath release -Filter "券来-Setup-*.exe" | Select-Object -First 1
           $checksum = "$($installer.FullName).sha256"
-          gh release create $env:GITHUB_REF_NAME $installer.FullName $checksum --verify-tag --generate-notes --title "券来 $env:GITHUB_REF_NAME"
+          gh release create $env:GITHUB_REF_NAME $installer.FullName $checksum --repo $env:GITHUB_REPOSITORY --generate-notes --title "券来 $env:GITHUB_REF_NAME" 2>&1 | Tee-Object -FilePath release-publish.log
+          $publishExitCode = $LASTEXITCODE
+          if ($publishExitCode -ne 0) {
+            $tail = (Get-Content -LiteralPath release-publish.log -Tail 30) -join "`n"
+            $tail = $tail.Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
+            Write-Output "::error title=GitHub Release publish failed::$tail"
+            exit $publishExitCode
+          }
