@@ -50,6 +50,9 @@ No actionable P0, P1, or P2 findings remain.
 - Page console errors after the interaction: 0.
 - Automated checks: 10 passed before local-only packaging cleanup; 6 project checks remain after removal of the unrelated static-hosting template tests.
 - Production build: passed.
+- Standalone runtime: embedded Python 3.13.12 and the public Skill were detected without WorkBuddy.
+- Packaged application: the clean-data `win-unpacked` build started successfully and reported `bundled-official-skill`.
+- Installer lifecycle: NSIS install, installed-app startup, local status check, and silent uninstall all passed.
 
 ## Follow-up Polish
 

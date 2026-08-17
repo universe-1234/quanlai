@@ -1,6 +1,7 @@
 import http from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { config } from "./config.mjs";
 import { getBridgeStatus, requestOfficialOtp, SkillBridgeError, verifyOfficialOtp } from "./workbuddy-skill.mjs";
 import { readJson, writeJson } from "./store.mjs";
@@ -103,19 +104,33 @@ async function serveStatic(request, response, url) {
   response.end(content);
 }
 
-startScheduler((error) => console.error(`[scheduler] ${error.message}`));
+export function createQuanlaiServer() {
+  return http.createServer(async (request, response) => {
+    const url = new URL(request.url, `http://${request.headers.host || "127.0.0.1"}`);
+    if (url.pathname.startsWith("/api/")) return handleApi(request, response, url);
+    try {
+      return await serveStatic(request, response, url);
+    } catch {
+      return json(response, 500, { message: "页面加载失败" });
+    }
+  });
+}
 
-const server = http.createServer(async (request, response) => {
-  const url = new URL(request.url, `http://${request.headers.host || "127.0.0.1"}`);
-  if (url.pathname.startsWith("/api/")) return handleApi(request, response, url);
-  try {
-    return await serveStatic(request, response, url);
-  } catch {
-    return json(response, 500, { message: "页面加载失败" });
-  }
-});
+export async function startQuanlaiServer({ port = config.port, onSchedulerError = console.error } = {}) {
+  const scheduler = startScheduler((error) => onSchedulerError(`[scheduler] ${error.message}`));
+  const server = createQuanlaiServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  const actualPort = typeof address === "object" && address ? address.port : port;
+  return { server, scheduler, url: `http://127.0.0.1:${actualPort}` };
+}
 
-server.listen(config.port, "127.0.0.1", () => {
-  console.log(`券来已启动：http://127.0.0.1:${config.port}`);
-  console.log("运行模式：本机官方美团红包助手 Skill 桥接");
-});
+const directEntry = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+if (directEntry) {
+  const started = await startQuanlaiServer({ onSchedulerError: console.error });
+  console.log(`券来已启动：${started.url}`);
+  console.log(`运行模式：${config.mode}`);
+}

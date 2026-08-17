@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import path from "node:path";
 import { promisify } from "node:util";
 import { config, skillPaths } from "./config.mjs";
 
@@ -56,6 +57,8 @@ export function buildSkillEnvironment(source = process.env) {
   // 官方 Skill 仍可使用 HTTP_PROXY / HTTPS_PROXY，因此仅移除冲突项。
   delete environment.ALL_PROXY;
   delete environment.all_proxy;
+  environment.SKILL_CACHE_PYTHON = config.pythonExe;
+  environment.SKILL_CACHE_WORKSPACE = environment.SKILL_CACHE_WORKSPACE || path.join(config.dataDir, "skill-workspace");
   return environment;
 }
 

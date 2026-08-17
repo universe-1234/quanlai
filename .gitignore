@@ -6,3 +6,7 @@ npm-debug.log*
 *.local
 qa-screenshots/
 docs/preview.png
+build/runtime/
+build/icon.png
+build/*-test-data/
+release/

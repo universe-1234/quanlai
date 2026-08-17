@@ -16,9 +16,14 @@ export async function registerSystemSchedule(time) {
   const projectRoot = path.resolve(".");
   const issueScript = path.join(projectRoot, "scripts", "issue.mjs");
   const envFile = path.join(projectRoot, ".env");
-  const actionArguments = `--env-file-if-exists="${envFile}" "${issueScript}" --auto`;
+  const electronRuntime = Boolean(process.versions.electron);
+  const actionExecutable = process.execPath;
+  const actionArguments = electronRuntime
+    ? (process.defaultApp ? `"${projectRoot}" --issue-auto` : "--issue-auto")
+    : `--env-file-if-exists="${envFile}" "${issueScript}" --auto`;
+  const workingDirectory = electronRuntime ? path.dirname(process.execPath) : projectRoot;
   const command = [
-    `$action = New-ScheduledTaskAction -Execute ${quotePowerShell(process.execPath)} -Argument ${quotePowerShell(actionArguments)} -WorkingDirectory ${quotePowerShell(projectRoot)}`,
+    `$action = New-ScheduledTaskAction -Execute ${quotePowerShell(actionExecutable)} -Argument ${quotePowerShell(actionArguments)} -WorkingDirectory ${quotePowerShell(workingDirectory)}`,
     `$trigger = New-ScheduledTaskTrigger -Daily -At ${quotePowerShell(time)}`,
     "$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries",
     "$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited",

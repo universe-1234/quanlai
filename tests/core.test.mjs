@@ -25,7 +25,7 @@ test("无法解析的 Skill 输出会被拒绝", () => {
 test("桥接信息不会暴露脚本路径或令牌", () => {
   const result = getBridgeInfo();
   assert.equal(typeof result.available, "boolean");
-  assert.equal(result.mode, "workbuddy-skill");
+  assert.match(result.mode, /official-skill$/);
   assert.equal("scripts" in result, false);
   assert.equal("userToken" in result, false);
 });

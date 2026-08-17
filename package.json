@@ -1,6 +1,11 @@
 {
   "name": "quanlai",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "本地优先的美团优惠券自动领取工具",
+  "author": "universe-1234",
+  "license": "MIT",
+  "homepage": "https://github.com/universe-1234/quanlai",
+  "main": "electron/main.mjs",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,16 +13,67 @@
     "build": "vite build",
     "start": "node --env-file-if-exists=.env server/index.mjs",
     "local": "npm run build && npm start",
+    "desktop": "npm run build && electron .",
+    "runtime:prepare": "node scripts/prepare-runtime.mjs",
+    "icon:build": "node scripts/build-icon.mjs",
+    "pack:win": "npm run build && npm run runtime:prepare && npm run icon:build && electron-builder --win --x64 --dir",
+    "dist:win": "npm run build && npm run runtime:prepare && npm run icon:build && electron-builder --win nsis --x64",
     "issue:auto": "node scripts/issue.mjs --auto",
     "test": "node --test tests/*.test.mjs",
     "preview": "vite preview"
   },
-  "dependencies": {
+  "dependencies": {},
+  "devDependencies": {
     "@fontsource-variable/noto-sans-sc": "^5.3.0",
     "@phosphor-icons/react": "^2.1.10",
     "@vitejs/plugin-react": "5.0.4",
+    "clawhub": "0.23.3",
+    "electron": "43.4.0",
+    "electron-builder": "26.15.3",
+    "extract-zip": "2.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "sharp": "0.35.3",
     "vite": "6.4.2"
+  },
+  "build": {
+    "appId": "com.universe1234.quanlai",
+    "productName": "券来",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/client/**/*",
+      "electron/**/*",
+      "server/**/*",
+      "scripts/issue.mjs",
+      "package.json",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md"
+    ],
+    "extraResources": [
+      {
+        "from": "build/runtime",
+        "to": "runtime",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "include": "build/installer.nsh",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "券来",
+      "artifactName": "券来-Setup-${version}-${arch}.${ext}",
+      "installerLanguages": ["zh_CN", "en_US"]
+    }
   }
 }
