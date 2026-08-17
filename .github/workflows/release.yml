@@ -2,6 +2,8 @@ name: Build Windows release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
@@ -34,14 +36,19 @@ jobs:
         run: |
           $maxAttempts = 2
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-            npm run dist:win
-            if ($LASTEXITCODE -eq 0) { exit 0 }
+            $logPath = "build-attempt-$attempt.log"
+            npm run dist:win 2>&1 | Tee-Object -FilePath $logPath
+            $buildExitCode = $LASTEXITCODE
+            if ($buildExitCode -eq 0) { exit 0 }
             if ($attempt -lt $maxAttempts) {
               Write-Warning "Build attempt $attempt failed; retrying transient downloads in 15 seconds"
               Start-Sleep -Seconds 15
             }
           }
-          exit $LASTEXITCODE
+          $tail = (Get-Content -LiteralPath $logPath -Tail 50) -join "`n"
+          $tail = $tail.Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
+          Write-Output "::error title=Windows release build failed::$tail"
+          exit $buildExitCode
 
       - name: Create checksum
         shell: pwsh
@@ -53,6 +60,7 @@ jobs:
           "$hash  $($installer.Name)" | Set-Content -LiteralPath $checksum -Encoding utf8
 
       - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
