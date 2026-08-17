@@ -65,11 +65,42 @@ jobs:
         run: |
           $installer = Get-ChildItem -LiteralPath release -Filter "券来-Setup-*.exe" | Select-Object -First 1
           $checksum = "$($installer.FullName).sha256"
-          gh release create $env:GITHUB_REF_NAME $installer.FullName $checksum --repo $env:GITHUB_REPOSITORY --generate-notes --title "券来 $env:GITHUB_REF_NAME" 2>&1 | Tee-Object -FilePath release-publish.log
-          $publishExitCode = $LASTEXITCODE
-          if ($publishExitCode -ne 0) {
-            $tail = (Get-Content -LiteralPath release-publish.log -Tail 30) -join "`n"
-            $tail = $tail.Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
-            Write-Output "::error title=GitHub Release publish failed::$tail"
-            exit $publishExitCode
+          $maxAttempts = 5
+          $publishExitCode = 1
+
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            gh release view $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY *> release-view.log
+            $releaseExists = $LASTEXITCODE -eq 0
+
+            if (-not $releaseExists) {
+              gh release create $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY --generate-notes --title "券来 $env:GITHUB_REF_NAME" 2>&1 | Tee-Object -FilePath release-create.log
+              $publishExitCode = $LASTEXITCODE
+              if ($publishExitCode -ne 0) {
+                if ($attempt -lt $maxAttempts) {
+                  Write-Warning "Release creation attempt $attempt failed; retrying in 30 seconds"
+                  Start-Sleep -Seconds 30
+                  continue
+                }
+                break
+              }
+            }
+
+            gh release upload $env:GITHUB_REF_NAME $installer.FullName $checksum --repo $env:GITHUB_REPOSITORY --clobber 2>&1 | Tee-Object -FilePath release-upload.log
+            $publishExitCode = $LASTEXITCODE
+            if ($publishExitCode -eq 0) { exit 0 }
+
+            if ($attempt -lt $maxAttempts) {
+              Write-Warning "Release upload attempt $attempt failed; retrying in 30 seconds"
+              Start-Sleep -Seconds 30
+            }
           }
+
+          $messages = @()
+          foreach ($logPath in @("release-view.log", "release-create.log", "release-upload.log")) {
+            if (Test-Path -LiteralPath $logPath) {
+              $messages += Get-Content -LiteralPath $logPath -Tail 20
+            }
+          }
+          $tail = ($messages -join "`n").Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
+          Write-Output "::error title=GitHub Release publish failed::$tail"
+          exit $publishExitCode
