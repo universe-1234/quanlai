@@ -105,7 +105,7 @@ flowchart LR
 在安装包和 `.sha256` 文件所在目录打开 PowerShell：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 '.\券来-Setup-1.0.1-x64.exe'
+Get-FileHash -Algorithm SHA256 '.\券来-Setup-1.0.2-x64.exe'
 ```
 
 输出值应与 Release 中 `.sha256` 文件的第一列一致。
@@ -152,8 +152,8 @@ npm run runtime:prepare  # 准备内置 Python 与公开 Skill
 发布新版本：
 
 ```bash
-git tag v1.0.1
-git push origin v1.0.1
+git tag v1.0.2
+git push origin v1.0.2
 ```
 
 推送 `v*` 标签后，GitHub Actions 会在 Windows 环境执行测试、构建安装包、生成 SHA-256 校验文件并发布 Release。工作流使用 GitHub 官方的 `checkout`、`setup-node` 与 GitHub CLI。

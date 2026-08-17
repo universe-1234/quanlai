@@ -2,8 +2,6 @@ name: Build Windows release
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
 

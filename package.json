@@ -1,6 +1,6 @@
 {
   "name": "quanlai",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "本地优先的美团优惠券自动领取工具",
   "author": "universe-1234",
   "license": "MIT",
@@ -17,7 +17,7 @@
     "runtime:prepare": "node scripts/prepare-runtime.mjs",
     "icon:build": "node scripts/build-icon.mjs",
     "pack:win": "npm run build && npm run runtime:prepare && npm run icon:build && electron-builder --win --x64 --dir",
-    "dist:win": "npm run build && npm run runtime:prepare && npm run icon:build && electron-builder --win nsis --x64",
+    "dist:win": "npm run build && npm run runtime:prepare && npm run icon:build && electron-builder --win nsis --x64 --publish never",
     "issue:auto": "node scripts/issue.mjs --auto",
     "test": "node --test tests/*.test.mjs",
     "preview": "vite preview"
