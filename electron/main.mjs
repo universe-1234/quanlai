@@ -1,7 +1,12 @@
 import { app, BrowserWindow, dialog, shell } from "electron";
 import path from "node:path";
+import { publicError } from "../server/errors.mjs";
+import '../server/runtime-options.mjs';
+
+if (process.env.QUANLAI_DATA_DIR) app.setPath('userData', path.resolve(process.env.QUANLAI_DATA_DIR));
 
 const headlessIssue = process.argv.includes("--issue-auto");
+const headlessDisable = process.argv.includes("--disable-auto");
 
 async function runHeadlessIssue() {
   await app.whenReady();
@@ -11,7 +16,7 @@ async function runHeadlessIssue() {
     console.log(JSON.stringify({ ok: result.ok, couponCount: result.couponCount, isFirstIssue: result.isFirstIssue }));
     app.exit(result.ok ? 0 : 1);
   } catch (error) {
-    console.error(error.message || "自动领券失败");
+    console.error(publicError(error).message);
     app.exit(1);
   }
 }
@@ -58,7 +63,15 @@ async function startDesktopApp() {
   });
 }
 
-if (headlessIssue) {
+if (headlessDisable) {
+  app.whenReady().then(async () => {
+    try {
+      const { service } = await import('../server/service.mjs');
+      const result = await service.saveSchedule({ enabled: false });
+      app.exit(result.cleanupPending ? 1 : 0);
+    } catch (error) { console.error(publicError(error).message); app.exit(1); }
+  });
+} else if (headlessIssue) {
   runHeadlessIssue();
 } else {
   const hasLock = app.requestSingleInstanceLock();
@@ -75,7 +88,7 @@ if (headlessIssue) {
     app.whenReady()
       .then(startDesktopApp)
       .catch((error) => {
-        dialog.showErrorBox("券来启动失败", error.message || String(error));
+        dialog.showErrorBox("券来启动失败", publicError(error).message);
         app.quit();
       });
     app.on("window-all-closed", () => app.quit());

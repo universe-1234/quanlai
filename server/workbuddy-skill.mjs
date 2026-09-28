@@ -2,6 +2,8 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { publicError, safeCoupons } from "./errors.mjs";
+import { maskPhone } from "./store.mjs";
 import { config, skillPaths } from "./config.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -19,16 +21,18 @@ export class SkillBridgeError extends Error {
 
 export function parseSkillJson(output) {
   const text = String(output || "").trim();
-  if (!text) throw new SkillBridgeError("官方 Skill 没有返回结果");
+  if (!text) throw new SkillBridgeError("组件没有返回结果", { code: "SKILL_FORMAT" });
   const candidates = [text, ...text.split(/\r?\n/).reverse()];
   for (const candidate of candidates) {
     try {
-      return JSON.parse(candidate);
+      const parsed = JSON.parse(candidate);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+      return parsed;
     } catch {
       // WorkBuddy 脚本正常输出单行 JSON；额外日志存在时继续尝试最后一行。
     }
   }
-  throw new SkillBridgeError("无法解析官方 Skill 返回结果");
+  throw new SkillBridgeError("无法解析组件返回结果", { code: "SKILL_FORMAT" });
 }
 
 function stripSensitive(value) {
@@ -69,6 +73,7 @@ async function runScript(script, args, timeout = 20_000) {
   }
 
   let stdout = "";
+  let processFailure;
   try {
     const result = await execFileAsync(config.pythonExe, [script, ...args], {
       cwd: config.skillRoot,
@@ -80,6 +85,7 @@ async function runScript(script, args, timeout = 20_000) {
     });
     stdout = result.stdout;
   } catch (error) {
+    processFailure = error;
     stdout = error.stdout || "";
     if (!stdout) {
       const timeoutMessage = error.killed ? "官方 Skill 请求超时" : "官方 Skill 运行失败";
@@ -95,6 +101,7 @@ async function runScript(script, args, timeout = 20_000) {
       redirectUrl: payload.redirect_url,
     });
   }
+  if (processFailure) throw new SkillBridgeError('组件异常退出', { code: processFailure.killed ? 'SKILL_TIMEOUT' : 'SKILL_PROCESS_ERROR' });
   return stripSensitive(payload);
 }
 
@@ -105,11 +112,11 @@ export async function getBridgeStatus() {
     const payload = await runScript(info.scripts.auth, ["status"]);
     return {
       available: true,
-      loggedIn: Boolean(payload.token_exists || payload.valid),
-      phoneMasked: payload.phone_masked || "",
+      loggedIn: payload.valid === false ? false : Boolean(payload.token_exists || payload.valid),
+      phoneMasked: maskPhone(payload.phone_masked || ""),
     };
   } catch (error) {
-    return { available: true, loggedIn: false, error: error.message };
+    return { available: true, loggedIn: false, error: publicError(error).message, code: publicError(error).code };
   }
 }
 
@@ -125,21 +132,22 @@ export async function requestOfficialOtp(phone, termsAccepted) {
   if (!termsAccepted) throw new SkillBridgeError("请先阅读并同意美团 Skill 服务使用规则", { code: "TERMS_REQUIRED", status: 400 });
   await acceptTerms();
   const payload = await runScript(skillPaths().auth, ["send-sms", "--phone", phone]);
-  return { ok: true, expiresIn: 60, maskedPhone: payload.phone_masked || "" };
+  return { ok: true, retryAfter: 60, maskedPhone: maskPhone(payload.phone_masked || "") };
 }
 
 export async function verifyOfficialOtp(phone, code) {
   const payload = await runScript(skillPaths().auth, ["verify", "--phone", phone, "--code", code]);
-  return { ok: true, maskedPhone: payload.phone_masked || "" };
+  return { ok: true, maskedPhone: maskPhone(payload.phone_masked || "") };
 }
 
 export async function issueOfficialCoupons() {
   const payload = await runScript(skillPaths().issue, ["--auto"], 30_000);
+  if (payload.success !== true || !Array.isArray(payload.coupons) || !Number.isFinite(Number(payload.coupon_count)) || Number(payload.coupon_count) < 0) throw new SkillBridgeError("组件返回格式异常", { code: "SKILL_FORMAT" });
   return {
     ok: true,
     isFirstIssue: Boolean(payload.is_first_issue),
     couponCount: Number(payload.coupon_count || 0),
-    coupons: Array.isArray(payload.coupons) ? payload.coupons : [],
+    coupons: safeCoupons(payload.coupons),
     requestId: payload.request_id || "",
   };
 }

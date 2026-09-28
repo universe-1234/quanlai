@@ -1,185 +1,94 @@
-<div align="center">
-
 # 券来
 
-**每天准时，优惠券自己来。**
+在 Windows 本机为自己的美团账号安排每日领券，并查看每次执行的实际结果。
 
-优惠券会过期，懒惰不会。让券来每天替你跑一趟。
+**非美团官方产品。** 登录和领取依赖公开发布的「美团红包助手 Skill」，不保证活动、券数量或接口长期可用。使用前请阅读[上游服务规则](https://open-pepper.meituan.com/eds/rules/meituan-coupon-skill-service-rule.html)。本项目不提供账号托管。
 
-[![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows11&logoColor=white)](https://github.com/universe-1234/quanlai/releases/latest)
-[![Latest release](https://img.shields.io/github/v/release/universe-1234/quanlai?display_name=tag)](https://github.com/universe-1234/quanlai/releases/latest)
-[![MIT](https://img.shields.io/badge/License-MIT-13A06F)](./LICENSE)
-[![Local first](https://img.shields.io/badge/Local--first-13A06F)](#隐私与安全)
+![管理界面，使用模拟数据](docs/screenshots/management-mock.png)
 
-[下载 Windows 安装版](https://github.com/universe-1234/quanlai/releases/latest)
+> 截图来自实际运行的界面，但账号、领取结果和券信息由测试模拟，不能作为真实领券证明。[窄窗口截图](docs/screenshots/narrow-mock.png)同样使用模拟数据。
 
-</div>
+## 安装与使用
 
-![券来界面](./design-reference.png)
+本分支是 **1.0.6-rc.1 候选版**，尚未正式发布。PR 的 Windows CI 通过后，可在对应 [Actions 运行](https://github.com/universe-1234/quanlai/actions)的 `windows-candidate` 构建产物中下载安装包（需要 GitHub 登录）。历史版本位于 [Releases](https://github.com/universe-1234/quanlai/releases)，不包含本分支的全部改进。
 
-> [!IMPORTANT]
-> 券来不是美团官方产品。登录和领券能力由公开发布的「美团红包助手 Skill」提供。使用前请阅读[服务使用规则](https://open-pepper.meituan.com/eds/rules/meituan-coupon-skill-service-rule.html)，只操作自己的账号。省钱可以积极，账号不要借来借去。
+1. 在 Windows 10/11 x64 安装 `QuanLai-Setup-版本号-x64.exe`。安装路径可以包含空格，安装包内置 Electron、Python 和领取组件。
+2. 首次运行时输入本人手机号，同意服务规则并填写短信验证码。重发倒计时只表示发送间隔，不表示验证码有效期。
+3. 设置本地时间并开启自动领取。只有系统任务配置成功后，才显示“已开启”。也可以先点击“立即领取”。
+4. 以后打开应用会恢复本地登录信息、执行时间、自动开关和最近记录。登录过期时重新登录。
 
-## 两分钟上手
+候选包未进行可信代码签名。下载后先核对来源与校验值；若 Windows 拦截，请检查具体提示，不要关闭系统安全保护。
 
-准备一台 64 位 Windows 10/11 电脑，然后：
+## 调度规则
 
-1. 打开 [Releases](https://github.com/universe-1234/quanlai/releases/latest)；
-2. 下载 `QuanLai-Setup-版本号-x64.exe`；
-3. 双击安装，打开券来。
+- Windows 唯一定时来源是计划任务 `QuanLai Daily Coupon`。关闭窗口后仍可执行；需要电脑开机、联网且用户已登录 Windows。
+- 使用电脑本地时区。每天在设定时间尝试一次；应用启动、用户登录或系统恢复后，如果当天已过时间且尚未自动尝试，则补领一次。不补往日，不主动唤醒电脑。
+- 自动失败后当天不循环重试，可点击“手动重试”。当天手动成功后，自动入口跳过当天任务。
+- 手动、命令行和后台共享执行服务及跨进程锁，同一时刻只允许一次领取。异常退出后回收死进程锁，将未完成记录标为“中断”；中断不代表上游一定未发券，重试前应确认平台结果。
+- 关闭时先保存禁用状态，再移除计划任务。清理失败会明确提示，可再次点击关闭；残留任务不会发起新领取。已经开始的请求仍可能完成。
+- 升级保留原数据目录、凭证、任务名称和时间；启动时核对并修复旧参数。卸载时禁用并移除任务，升级安装不关闭原有安排。
+- Linux/macOS 源码运行模式仅在应用运行期间定时检查，关闭应用即停止。本项目没有提供这些平台的安装包。
 
-安装包已经带齐运行所需组件，不用配置开发环境，也不用先去学一门编程语言。会双击，就已经完成了一半。
+## 结果与失败处理
 
-当前安装包尚未购买代码签名证书，Windows 首次运行时可能显示 SmartScreen 提示。请先确认下载地址来自本仓库的 Release，再选择“更多信息 → 仍要运行”。每个版本还会附带 `.sha256` 文件，方便认真到连一位数字都不肯放过的朋友校验文件。
+最近 100 次执行记录保存在本机，包含来源、起止时间、成功/失败/中断状态和上游返回的券数量及券信息。缺少面额或有效期时不推算，不统计虚构的累计节省金额。
 
-## 手机号、验证码、闹钟
-
-券来的设置流程只有三步：
-
-1. 输入自己的手机号，阅读并同意服务规则，获取短信验证码；
-2. 填写 6 位验证码，完成登录；
-3. 选择每天执行时间，点击“开启自动领取”。
-
-完成后，Windows 会创建名为 `QuanLai Daily Coupon` 的计划任务。应用窗口可以关掉，到点时电脑会在后台执行一次领取——它不需要喝咖啡，但电脑需要开机和联网。
-
-## 它能做什么
-
-- 使用手机号和短信验证码登录；
-- 自定义每天自动执行时间；
-- 关闭窗口后仍可由 Windows 计划任务执行；
-- 重复运行由服务端幂等保护，不会把同一天的券领成俄罗斯套娃；
-- 展示券名、面额、使用门槛和有效期；
-- 所有设置与凭证留在本机，不提供远程账号托管；
-- 支持桌面和窄屏窗口，窗口变小，功能不缩水。
-
-## 它是怎么工作的
-
-```mermaid
-flowchart LR
-    UI["券来桌面界面"] --> API["127.0.0.1 本地服务"]
-    API --> BRIDGE["敏感字段过滤桥接"]
-    BRIDGE --> SKILL["内置领取组件"]
-    SKILL --> SERVICE["美团服务"]
-    API --> TASK["Windows 任务计划程序"]
-    TASK --> APP["券来后台执行入口"]
-    APP --> SKILL
-```
-
-安装版把界面、本地服务、运行环境和领取组件一起放在用户电脑上。券来只监听 `127.0.0.1`，不会突然拿起大喇叭向整个局域网广播。
-
-认证凭证和领取记录保存在本机。桥接层会过滤 `user_token`、`device_token` 等敏感字段，不把这些内容返回给页面。
-
-## 隐私与安全
-
-| 数据 | 如何处理 |
+| 提示 | 处理方式 |
 | --- | --- |
-| 手机号 | 只在登录时交给本机领取组件，页面展示脱敏号码 |
-| 短信验证码 | 只用于本次验证，不写入券来的设置文件 |
-| 登录凭证 | 缓存在当前 Windows 用户的数据目录 |
-| 执行计划 | 本地保存执行时间、启用状态和最后执行日期 |
-| 本地服务 | 只监听 `127.0.0.1`，不向局域网或公网开放 |
-| GitHub 仓库 | 不包含手机号、验证码、登录令牌或个人缓存 |
+| 登录失效 | 重新登录后手动重试；关闭任务不需要登录 |
+| 网络失败、超时 | 检查网络，确认平台结果后手动重试 |
+| 组件不可用、格式异常 | 检查安装完整性或等待组件兼容修复 |
+| 系统任务异常 | 点击“修复 / 确认任务”或重试关闭；失败时保留原配置 |
+| 本地记录损坏 | 先关闭自动领取，保留原数据及 `.corrupt` 诊断副本再排查，不要当作首次启动清空 |
 
-默认用户数据位置：
+状态每 10 秒刷新，执行中约每 1.5 秒刷新；关闭页面后停止轮询。首页账号状态来自本地凭证检查，领取时由上游组件再验证有效性；它不代表登录永不过期。
 
-```text
-%APPDATA%\券来
-```
+## 数据与第三方边界
 
-不要把该目录、日志或登录凭证发给别人。若要彻底清除本地状态，请先在券来中关闭自动领取并卸载应用，再手动删除上述目录。
+Windows 默认数据目录仍为 `%APPDATA%\券来`。`schedule.json` 保存设置，`runs.json` 保存记录；两者使用原子替换写入。执行/状态锁也放在该目录。首次升级没有历史会显示空状态，损坏文件会报错并保留副本。
 
-## 常见问题
+凭证继续由第三方组件管理；本项目不把令牌、原始手机号、原始异常或本地路径返回给界面，记录仅保留允许展示的券字段。不要公开整个用户数据目录或组件缓存，它们可能包含凭证。没有遥测、云端同步或自动更新；登录和领券仍需要访问上游服务。
 
-### 获取验证码后出现安全验证链接
+## 开发、测试与打包
 
-这是服务端的正常安全校验。打开券来提供的链接完成验证，再返回应用重新获取验证码。券来不会绕过安全验证，也不会和平台风控玩躲猫猫。
+使用 Node.js 22+：
 
-### 到点了，为什么没有自动领取
-
-先确认电脑当时处于开机、联网状态，再到 Windows“任务计划程序”中检查 `QuanLai Daily Coupon`。电脑睡着时，券来也只能跟着睡；关机期间错过的执行不会远程补跑。
-
-### 如何关闭自动领取
-
-打开券来，在设置页关闭自动领取即可删除计划任务。直接卸载新版安装包时，卸载程序也会移除该任务，不留一位每天准时上班却找不到公司的“幽灵员工”。
-
-### 如何校验安装包
-
-在安装包和 `.sha256` 文件所在目录打开 PowerShell：
-
-```powershell
-Get-FileHash -Algorithm SHA256 '.\QuanLai-Setup-1.0.5-x64.exe'
-```
-
-输出值应与 Release 中 `.sha256` 文件第一列一致。大小写不重要，数字和字母一个都不能少。
-
-## 开发者指南
-
-想看看它肚子里装了什么？源码开发需要 Node.js 22 或更高版本：
-
-```bash
-git clone https://github.com/universe-1234/quanlai.git
-cd quanlai
+```sh
 npm ci
 npm test
+npm run build
+npx playwright install chromium
+npm run test:ui
 npm run desktop
 ```
 
-常用命令：
+已有 Edge 时可在 PowerShell 设置 `$env:PW_CHANNEL='msedge'` 后运行界面测试。源码登录/领券需要本地 Skill 与 Python，可用 `QUANLAI_SKILL_ROOT`、`QUANLAI_PYTHON` 指定。`QUANLAI_DATA_DIR` 和 `QUANLAI_TASK_NAME` 用于测试隔离；显式覆盖值会传入计划任务，使后台继续使用同一配置。
 
-```bash
-npm run desktop          # 构建并启动桌面开发版
-npm test                 # 运行自动测试
-npm run pack:win         # 生成免安装目录
-npm run dist:win         # 生成 Windows 安装程序
-npm run runtime:prepare  # 准备内置运行环境与领取组件
+Windows 使用 `npm run dist:win` 构建。ClawHub 固定版本当前可能不可用；可显式从本仓库公开的 v1.0.5 安装包恢复原运行时，再构建：
+
+```powershell
+./scripts/restore-release-runtime.ps1
+npm run dist:win
 ```
 
-项目结构：
+恢复脚本需要 7-Zip 24.09+ 并校验固定 SHA-256，只提取公开安装包的运行时，不读取个人凭证。运行时仍是 Python 3.13.12、Skill 1.0.0、httpx 0.28.1，不代表上游组件已更新。临时下载目录会在脚本结束时打印。
 
-```text
-券来/
-├─ src/                       # React 页面与交互
-├─ electron/main.mjs          # 桌面应用入口
-├─ server/                    # 本地 API、桥接与调度
-├─ scripts/                   # 自动领取、运行时和图标构建脚本
-├─ build/                     # 安装器配置与图标源文件
-├─ tests/                     # Node 自动测试
-└─ .github/workflows/         # GitHub Release 自动构建
+Windows 实机测试：
+
+```powershell
+npm run test:windows
+node scripts/build-qa.mjs
+node scripts/test-windows-install.mjs
 ```
 
-发布新版本：
+QA 使用独立应用标识、数据目录、任务名及模拟上游，并自动安装/卸载。不要用正常安装包替换 QA 输入。详见[验证记录](docs/validation.md)和[第三方说明](THIRD_PARTY_NOTICES.md)。本轮不发布正式 Release。
 
-```bash
-git tag v1.0.5
-git push origin v1.0.5
-```
+## 结构与接口
 
-推送 `v*` 标签后，GitHub Actions 会在 Windows 环境运行测试、构建安装包、生成 SHA-256 校验文件并发布 Release。网络偶尔闹脾气也没关系，创建 Release 和上传文件都带有自动重试。
+`React → 本地 HTTP API → 统一执行服务 → Python Skill → 上游服务`
 
-## 已完成验证
+`Windows 任务 / 命令行 → 同一执行服务 → 执行锁 + 设置 + 最近 100 条记录`
 
-当前版本已在 Windows 环境完成：
+接口：`GET /api/status`、`GET /api/runs`、`POST /api/schedule`（`enabled`、`time`）、`POST /api/coupons/issue`。重复执行返回 HTTP 409；领取失败仍带运行标识与归档结果。原状态字段保持兼容，新字段提供任务实际状态、下一次执行时间和最近结果。
 
-- 6 项自动测试全部通过；
-- 生产页面构建通过；
-- 真实短信发送与验证码登录通过；
-- 首次真实领取成功返回 7 张券；
-- Windows 计划任务创建并手动触发成功；
-- 内置运行环境与领取组件在全新隔离目录中可用；
-- 免安装版与安装版均通过独立启动测试；
-- 安装、运行、卸载完整链路通过；
-- GitHub 云端构建与 Release 发布通过；
-- 仓库扫描未发现手机号、验证码或登录令牌。
-
-设计与交互验收详见 [`design-qa.md`](./design-qa.md)。测试不是为了让徽章更好看，是为了不让你在凌晨零点替程序加班。
-
-## 使用边界
-
-- 仅用于本人账号和正常个人用途；
-- 遵守美团及相关服务规则；
-- 不保证优惠券种类、数量、有效期或长期可用性；
-- 平台规则、领取组件版本或网络环境变化都可能影响运行；
-- 不提供绕过验证码、安全校验、访问控制或反滥用机制的功能；
-- 本项目按 MIT 许可证发布，第三方组件许可见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
-
-发现问题欢迎提交 Issue。程序可以有 bug，别让 bug 过上包吃包住的日子。
+MIT License。第三方组件与商标的权利归各自权利人所有。
