@@ -1,13 +1,20 @@
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
-
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,5 +22,27 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npm run build
       - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+        if: runner.os != 'Windows'
+      - run: npm run test:ui
+        env:
+          PW_CHANNEL: ${{ runner.os == 'Windows' && 'msedge' || '' }}
+      - name: Recover pinned published runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/restore-release-runtime.ps1
+      - name: Build candidate installer (no publication)
+        if: runner.os == 'Windows'
+        run: npm run dist:win
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: windows-candidate
+          path: release/QuanLai-Setup-*.exe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-evidence-${{ matrix.os }}
+          path: output/playwright

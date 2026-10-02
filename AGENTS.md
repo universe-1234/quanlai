@@ -1,5 +1,9 @@
 # Prototype Instructions
 
+## Reliability iteration decisions
+
+Keep the existing visual style and React/Electron/Node/Python architecture. The product is a single-account local Windows utility. Use local time and at most one automatic attempt per day; failed attempts require manual retry. Do not add telemetry, account sync, tray residency, auto-updates, or marketing features. Tests must use isolated data and task names and must not send real SMS.
+
 Run the local server yourself and open the preview in the browser available to this environment. Do not give the user server-start instructions when you can run it.
 
 Before making substantial visual changes, use the Product Design plugin's `get-context` skill when the visual source is unclear or no longer matches the current goal. When the user gives durable prototype-specific design feedback, preferences, or decisions, record them in `AGENTS.md`.

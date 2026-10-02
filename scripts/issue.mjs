@@ -1,5 +1,7 @@
 import { runIssue } from "../server/scheduler.mjs";
 
+import { publicError } from "../server/errors.mjs";
+
 const automatic = process.argv.includes("--auto");
 
 try {
@@ -7,6 +9,6 @@ try {
   console.log(JSON.stringify(result, null, 2));
   process.exit(result.ok ? 0 : 1);
 } catch (error) {
-  console.error(error.message);
+  console.error(publicError(error).message);
   process.exit(1);
 }

@@ -3,10 +3,10 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { config } from "./config.mjs";
-import { getBridgeStatus, requestOfficialOtp, SkillBridgeError, verifyOfficialOtp } from "./workbuddy-skill.mjs";
-import { readJson, writeJson } from "./store.mjs";
-import { runIssue, startScheduler } from "./scheduler.mjs";
-import { registerSystemSchedule } from "./system-schedule.mjs";
+import { requestOfficialOtp, verifyOfficialOtp } from "./workbuddy-skill.mjs";
+import { startScheduler } from "./scheduler.mjs";
+import { service } from "./service.mjs";
+import { publicError } from "./errors.mjs";
 
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".woff2": "font/woff2", ".png": "image/png", ".svg": "image/svg+xml" };
 const attempts = new Map();
@@ -37,57 +37,53 @@ function allowOtp(phone) {
   return true;
 }
 
-async function handleApi(request, response, url) {
+async function handleApi(request, response, url, appService, auth) {
   try {
     if (url.pathname === "/api/status" && request.method === "GET") {
-      const schedule = await readJson("schedule.json", { enabled: false, time: "00:00" });
-      const bridge = await getBridgeStatus();
-      return json(response, 200, { ok: true, mode: config.mode, service: bridge.available ? "normal" : "unavailable", bridge, schedule });
+      return json(response, 200, { ...await appService.status(), mode: config.mode });
     }
 
     if (url.pathname === "/api/auth/otp/request" && request.method === "POST") {
       const payload = await body(request);
       if (!validPhone(payload.phone)) return json(response, 400, { message: "请输入正确的 11 位手机号" });
       if (!allowOtp(payload.phone)) return json(response, 429, { message: "发送太频繁，请 60 秒后再试" });
-      const result = await requestOfficialOtp(payload.phone, payload.termsAccepted === true);
-      return json(response, 200, { ok: true, expiresIn: result.expiresIn || 60, mode: config.mode, maskedPhone: result.maskedPhone });
+      const result = await auth.requestOtp(payload.phone, payload.termsAccepted === true);
+      return json(response, 200, { ok: true, retryAfter: result.retryAfter || 60, mode: config.mode, maskedPhone: result.maskedPhone });
     }
 
     if (url.pathname === "/api/auth/otp/verify" && request.method === "POST") {
       const payload = await body(request);
       if (!validPhone(payload.phone) || !/^\d{6}$/.test(payload.code || "")) return json(response, 400, { message: "手机号或验证码格式不正确" });
-      const result = await verifyOfficialOtp(payload.phone, payload.code);
+      const result = await auth.verifyOtp(payload.phone, payload.code);
       return json(response, 200, { ok: true, maskedPhone: result.maskedPhone });
     }
 
     if (url.pathname === "/api/schedule" && request.method === "POST") {
-      const payload = await body(request);
-      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(payload.time || "")) return json(response, 400, { message: "执行时间格式不正确" });
-      const bridge = await getBridgeStatus();
-      if (!bridge.loggedIn) return json(response, 401, { message: "请先完成手机号验证" });
-      const schedule = { time: payload.time, enabled: Boolean(payload.enabled), updatedAt: new Date().toISOString() };
-      await writeJson("schedule.json", schedule);
-      const systemSchedule = await registerSystemSchedule(schedule.time);
-      return json(response, 200, { ok: true, ...schedule, systemSchedule });
+      const result = await appService.saveSchedule(await body(request));
+      if (result.enabled) appService.run("schedule-change").catch(() => {});
+      return json(response, 200, result);
     }
 
     if (url.pathname === "/api/coupons/issue" && request.method === "POST") {
-      return json(response, 200, await runIssue("manual"));
+      return json(response, 200, await appService.run("manual"));
     }
+
+    if (url.pathname === "/api/runs" && request.method === "GET") return json(response, 200, { runs: await appService.getRuns() });
 
     return json(response, 404, { message: "接口不存在" });
   } catch (error) {
-    if (error instanceof SkillBridgeError) {
-      return json(response, error.status, { message: error.message, code: error.code, redirectUrl: error.redirectUrl || undefined });
-    }
-    return json(response, 500, { message: error.message || "服务内部错误" });
+    const failure = publicError(error);
+    const status = error.status || (error instanceof SyntaxError ? 400 : 500);
+    let redirectUrl;
+    try { const url = new URL(error.redirectUrl); if (url.protocol === "https:" && (url.hostname === "meituan.com" || url.hostname.endsWith(".meituan.com"))) redirectUrl = url.href; } catch {}
+    return json(response, status, { ...failure, redirectUrl });
   }
 }
 
 async function serveStatic(request, response, url) {
   const relative = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
   let filePath = path.resolve(config.staticDir, relative);
-  if (!filePath.startsWith(config.staticDir)) return json(response, 403, { message: "禁止访问" });
+  if (path.relative(path.resolve(config.staticDir), filePath).startsWith("..") || path.isAbsolute(path.relative(path.resolve(config.staticDir), filePath))) return json(response, 403, { message: "禁止访问" });
   try {
     if (!(await stat(filePath)).isFile()) throw Object.assign(new Error(), { code: "ENOENT" });
   } catch (error) {
@@ -104,10 +100,14 @@ async function serveStatic(request, response, url) {
   response.end(content);
 }
 
-export function createQuanlaiServer() {
+export function createQuanlaiServer({ appService = service, auth = { requestOtp: requestOfficialOtp, verifyOtp: verifyOfficialOtp } } = {}) {
   return http.createServer(async (request, response) => {
-    const url = new URL(request.url, `http://${request.headers.host || "127.0.0.1"}`);
-    if (url.pathname.startsWith("/api/")) return handleApi(request, response, url);
+    if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(request.headers.host || "")) return json(response, 400, { message: "无效的本地地址" });
+    if (request.method === "POST" && request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) return json(response, 403, { message: "禁止跨站请求" });
+    let url;
+    try { url = new URL(request.url, `http://${request.headers.host}`); }
+    catch { return json(response, 400, { message: "无效的本地地址" }); }
+    if (url.pathname.startsWith("/api/")) return handleApi(request, response, url, appService, auth);
     try {
       return await serveStatic(request, response, url);
     } catch {
@@ -117,6 +117,7 @@ export function createQuanlaiServer() {
 }
 
 export async function startQuanlaiServer({ port = config.port, onSchedulerError = console.error } = {}) {
+  try { await service.reconcile(); } catch (error) { onSchedulerError(publicError(error).message); }
   const scheduler = startScheduler((error) => onSchedulerError(`[scheduler] ${error.message}`));
   const server = createQuanlaiServer();
   await new Promise((resolve, reject) => {
@@ -125,6 +126,7 @@ export async function startQuanlaiServer({ port = config.port, onSchedulerError 
   });
   const address = server.address();
   const actualPort = typeof address === "object" && address ? address.port : port;
+  service.run("startup").catch(error => { if (error.code !== "BUSY") onSchedulerError(publicError(error).message); });
   return { server, scheduler, url: `http://127.0.0.1:${actualPort}` };
 }
 

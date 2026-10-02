@@ -10,3 +10,8 @@ build/runtime/
 build/icon.png
 build/*-test-data/
 release/
+release-qa/
+
+output/
+playwright-report/
+test-results/
